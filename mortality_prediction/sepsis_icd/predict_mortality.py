@@ -3,46 +3,53 @@ import logging
 log = logging.getLogger("Pipeline")
 
 
-def readData(con, schemaName, targetStart, targetEnd):
+def readData(dirPath, targetStart, targetEnd):
 
     import pandas as pd
 
-    dataQuery = """
-        select
-        dm.*,
-        (dm.death_datetime > (co.intime + INTERVAL '""" + str(targetStart) + """ DAY')) and (dm.death_datetime < (co.intime + INTERVAL '""" + str(targetEnd) + """ DAY')) as target
-        from
-        """ + schemaName + """.data_matrix_qc dm
-        inner join """ + schemaName + """.cohort co
-        on dm.visit_occurrence_id = co.visit_occurrence_id
-        ;
-    """
-    dataDf = pd.read_sql_query(dataQuery, con)
+    dataDf = pd.read_csv(dirPath + 'data_matrix.csv')
+
+    dataDf.anchor_time = dataDf.anchor_time.apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d %H:%M:%S'))
+    dataDf.death_datetime = dataDf.death_datetime.apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d %H:%M:%S'))
+
+    dataDf['target'] = (dataDf['death_datetime'] > (dataDf['anchor_time'] + pd.Timedelta(days=targetStart))) & (dataDf['death_datetime'] < (dataDf['anchor_time'] + pd.Timedelta(days=targetEnd)))
     dataDf.target.fillna(value=False, inplace=True)
 
     log.info('Formatting data')
 
     dropCols = [
-        'visit_occurrence_id',
-        'visit_duration_hrs',
+        'person_id',
+        'age',
         'gender',
+        'ethnicity_WHITE',
+        'ethnicity_BLACK',
+        'ethnicity_UNKNOWN',
+        'ethnicity_OTHER',
+        'ethnicity_HISPANIC',
+        'ethnicity_ASIAN',
+        'ethnicity_UNABLE_TO_OBTAIN',
+        'ethnicity_AMERICAN_INDIAN',
+        'anchor_time',
         'death_datetime',
         'target',
     ]
 
+    vitalsCols = ['heartrate', 'sysbp', 'diabp', 'meanbp', 'resprate', 'tempc', 'spo2', 'gcseye', 'gcsverbal', 'gcsmotor']
+    labsCols = ['chloride_serum', 'creatinine', 'sodium_serum', 'hemoglobin', 'platelet_count', 'urea_nitrogen', 'glucose_serum', 'bicarbonate', 'potassium_serum', 'anion_gap', 'leukocytes_blood_manual', 'hematocrit']
+
     X = dataDf.drop(dropCols, axis = 1)
-    XVitalsMax = dataDf[['temp_max', 'heartrate_max', 'breath_rate_vent_max', 'breath_rate_spon_max', 'resp_rate_max', 'oxygen_max', 'sysbp_max', 'diabp_max', 'meanbp_max', 'sysbp_ni_max', 'diabp_ni_max', 'meanbp_ni_max', 'gcs_motor_max', 'gcs_verbal_max', 'gcs_eye_max']]
-    XVitalsMin = dataDf[['temp_min', 'heartrate_min', 'breath_rate_vent_min', 'breath_rate_spon_min', 'resp_rate_min', 'oxygen_min', 'sysbp_min', 'diabp_min', 'meanbp_min', 'sysbp_ni_min', 'diabp_ni_min', 'meanbp_ni_min', 'gcs_motor_min', 'gcs_verbal_min', 'gcs_eye_min']]
-    XVitalsAvg = dataDf[['temp_avg', 'heartrate_avg', 'breath_rate_vent_avg', 'breath_rate_spon_avg', 'resp_rate_avg', 'oxygen_avg', 'sysbp_avg', 'diabp_avg', 'meanbp_avg', 'sysbp_ni_avg', 'diabp_ni_avg', 'meanbp_ni_avg', 'gcs_motor_avg', 'gcs_verbal_avg', 'gcs_eye_avg']]
-    XVitalsSd = dataDf[['temp_sd', 'heartrate_sd', 'breath_rate_vent_sd', 'breath_rate_spon_sd', 'resp_rate_sd', 'oxygen_sd', 'sysbp_sd', 'diabp_sd', 'meanbp_sd', 'sysbp_ni_sd', 'diabp_ni_sd', 'meanbp_ni_sd', 'gcs_motor_sd', 'gcs_verbal_sd', 'gcs_eye_sd']]
-    XVitalsFirst = dataDf[['temp_first', 'heartrate_first', 'breath_rate_vent_first', 'breath_rate_spon_first', 'resp_rate_first', 'oxygen_first', 'sysbp_first', 'diabp_first', 'meanbp_first', 'sysbp_ni_first', 'diabp_ni_first', 'meanbp_ni_first', 'gcs_motor_first', 'gcs_verbal_first', 'gcs_eye_first']]
-    XVitalsLast = dataDf[['temp_last', 'heartrate_last', 'breath_rate_vent_last', 'breath_rate_spon_last', 'resp_rate_last', 'oxygen_last', 'sysbp_last', 'diabp_last', 'meanbp_last', 'sysbp_ni_last', 'diabp_ni_last', 'meanbp_ni_last', 'gcs_motor_last', 'gcs_verbal_last', 'gcs_eye_last']]
-    XLabsMax = dataDf[['potassium_max', 'chloride_max', 'glucose_max', 'sodium_max', 'bicarbonate_max', 'hemoglobin_max', 'creatinine_max']]
-    XLabsMin = dataDf[['potassium_min', 'chloride_min', 'glucose_min', 'sodium_min', 'bicarbonate_min', 'hemoglobin_min', 'creatinine_min']]
-    XLabsAvg = dataDf[['potassium_avg', 'chloride_avg', 'glucose_avg', 'sodium_avg', 'bicarbonate_avg', 'hemoglobin_avg', 'creatinine_avg']]
-    XLabsSd = dataDf[['potassium_sd', 'chloride_sd', 'glucose_sd', 'sodium_sd', 'bicarbonate_sd', 'hemoglobin_sd', 'creatinine_sd']]
-    XLabsFirst = dataDf[['potassium_first', 'chloride_first', 'glucose_first', 'sodium_first', 'bicarbonate_first', 'hemoglobin_first', 'creatinine_first']]
-    XLabsLast = dataDf[['potassium_last', 'chloride_last', 'glucose_last', 'sodium_last', 'bicarbonate_last', 'hemoglobin_last', 'creatinine_last']]
+    XVitalsMin = dataDf[[vitalCol + '_min' for vitalCol in vitalsCols if vitalCol + '_min' in dataDf.columns]]
+    XVitalsMax = dataDf[[vitalCol + '_max' for vitalCol in vitalsCols if vitalCol + '_max' in dataDf.columns]]
+    XVitalsAvg = dataDf[[vitalCol + '_avg' for vitalCol in vitalsCols if vitalCol + '_avg' in dataDf.columns]]
+    XVitalsSd = dataDf[[vitalCol + '_stddev' for vitalCol in vitalsCols if vitalCol + '_stddev' in dataDf.columns]]
+    XVitalsFirst = dataDf[[vitalCol + '_first' for vitalCol in vitalsCols if vitalCol + '_first' in dataDf.columns]]
+    XVitalsLast = dataDf[[vitalCol + '_last' for vitalCol in vitalsCols if vitalCol + '_last' in dataDf.columns]]
+    XLabsMax = dataDf[[labsCol + '_min' for labsCol in labsCols if labsCol + '_min' in dataDf.columns]]
+    XLabsMin = dataDf[[labsCol + '_max' for labsCol in labsCols if labsCol + '_max' in dataDf.columns]]
+    XLabsAvg = dataDf[[labsCol + '_avg' for labsCol in labsCols if labsCol + '_avg' in dataDf.columns]]
+    XLabsSd = dataDf[[labsCol + '_stddev' for labsCol in labsCols if labsCol + '_stddev' in dataDf.columns]]
+    XLabsFirst = dataDf[[labsCol + '_first' for labsCol in labsCols if labsCol + '_first' in dataDf.columns]]
+    XLabsLast = dataDf[[labsCol + '_last' for labsCol in labsCols if labsCol + '_last' in dataDf.columns]]
     y = dataDf["target"]
 
     return X, XVitalsMax, XVitalsMin, XVitalsAvg, XVitalsSd, XVitalsFirst, XVitalsLast, XLabsMax, XLabsMin, XLabsAvg, XLabsSd, XLabsFirst, XLabsLast, y
@@ -55,6 +62,7 @@ def performSfs(X, y):
     from sklearn.tree import DecisionTreeClassifier
 
     sfs = SequentialFeatureSelector(estimator = DecisionTreeClassifier(), n_features_to_select=25)
+
     sfs.fit(X, y)
 
     XMin = X[sfs.get_feature_names_out()]
@@ -170,11 +178,9 @@ def getOutputProbabilities(XVitalsMax, XVitalsMin, XVitalsAvg, XVitalsSd, XVital
         XLabsFirst,
         XLabsLast,
         y,
-        test_size=0.2,
+        test_size=0.5,
         random_state=42
         )
-
-    log.info('Performing Hyperparameter optimisation for XGBoost')
 
     from xgboost import XGBClassifier
     from sklearn.linear_model import LogisticRegression
@@ -182,15 +188,9 @@ def getOutputProbabilities(XVitalsMax, XVitalsMin, XVitalsAvg, XVitalsSd, XVital
     from sklearn.neural_network import MLPClassifier
     from sklearn.model_selection import GridSearchCV
 
-    xgbParameters={
-        'max_depth': [6, 9, 12],
-        'scale_pos_weight': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],
-    }
+    log.info('Performing Hyperparameter optimisation for XGBoost')
 
-    xgbGrid = GridSearchCV(XGBClassifier(use_label_encoder=False, verbosity=0), xgbParameters)
-    xgbGrid.fit(XVitalsMax, y)
-
-    xgbParams = xgbGrid.cv_results_['params'][list(xgbGrid.cv_results_['rank_test_score']).index(1)]
+    xgbParams = performXgbHyperparameterTuning(XVitalsMax, y)
 
     log.info('Performing Hyperparameter optimisation for Logistic Regression')
 
@@ -266,6 +266,44 @@ def getOutputProbabilities(XVitalsMax, XVitalsMin, XVitalsAvg, XVitalsSd, XVital
     return Xnew, yTest
 
 
+def getBestXgbHyperparameter(X, y, parameters):
+
+    from xgboost import XGBClassifier
+
+    from sklearn.model_selection import GridSearchCV
+
+    params = {}
+
+    log.info('Hyperparameter optimisation for: ' + str(parameters))
+
+    clf = GridSearchCV(XGBClassifier(use_label_encoder=False), parameters)
+    clf.fit(X, y)
+
+    params = clf.cv_results_['params'][list(clf.cv_results_['rank_test_score']).index(1)]
+    return(params)
+
+
+def performXgbHyperparameterTuning(X, y):
+
+    params = {}
+
+    params.update(getBestXgbHyperparameter(X, y, {'max_depth' : range(1,10),'scale_pos_weight': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],}))
+
+    params.update(getBestXgbHyperparameter(X, y, {'n_estimators':range(50,250,10)}))
+
+    params.update(getBestXgbHyperparameter(X, y, {'min_child_weight':range(1,10)}))
+
+    params.update(getBestXgbHyperparameter(X, y, {'gamma':[i/10. for i in range(0,5)]}))
+
+    params.update(getBestXgbHyperparameter(X, y, {'subsample':[i/10.0 for i in range(1,10)],'colsample_bytree':[i/10.0 for i in range(1,10)]}))
+
+    params.update(getBestXgbHyperparameter(X, y, {'reg_alpha':[0, 1e-5, 1e-3, 0.1, 10]}))
+
+    log.info('params: ' + str(params))
+
+    return params
+
+
 def buildXGBoostModel(X, y):
     log.info('Performing Hyperparameter optimisation')
 
@@ -273,19 +311,9 @@ def buildXGBoostModel(X, y):
 
     from xgboost import XGBClassifier
 
-    from sklearn.model_selection import GridSearchCV
-
-    parameters={
-        'max_depth': [6, 9, 12],
-        'scale_pos_weight': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],
-    }
-
-    clf = GridSearchCV(XGBClassifier(use_label_encoder=False), parameters)
-    clf.fit(X, y)
-
-    params = clf.cv_results_['params'][list(clf.cv_results_['rank_test_score']).index(1)]
-
     log.info('Building the model')
+    
+    params = performXgbHyperparameterTuning(X, y)
 
     xgb = XGBClassifier(use_label_encoder=False)
     xgb.set_params(**params)
@@ -300,7 +328,7 @@ def buildXGBoostModel(X, y):
     return xgbScores
 
 
-def saveCvScores(scores_dict, schemaName, targetStart, targetEnd):
+def saveCvScores(scores_dict, dirPath, dirName, targetStart, targetEnd):
 
     import os
     import pickle
@@ -321,8 +349,7 @@ def saveCvScores(scores_dict, schemaName, targetStart, targetEnd):
             if key == 'test_roc_auc':
                 roc_auc_scores.append(value)
 
-    dataDir = Path('./', 'data', 'sepsis_cohort', 'results')
-    currentDir = Path(dataDir, schemaName)
+    currentDir = Path(dirPath, dirName)
     if not os.path.exists(currentDir):
         os.makedirs(currentDir)
     cvScoresPath = Path(currentDir, 'cv_scores_ts_' + str(targetStart) + '_te_' + str(targetEnd) + '.pickle')
@@ -340,7 +367,6 @@ def calculateMccF1(x, y):
     # import R's "base" package
     mccf1 = importr('mccf1')
 
-
     old_stdout = sys.stdout # backup current stdout
     sys.stdout = open(os.devnull, "w")
     p = robjects.FloatVector(x)
@@ -352,10 +378,10 @@ def calculateMccF1(x, y):
     return out
 
 
-def runPredictions(con, schemaName, targetStart, targetEnd):
+def runPredictions(dirPath, dirName, targetStart, targetEnd):
     log.info('Reading data')
 
-    X, XVitalsMax, XVitalsMin, XVitalsAvg, XVitalsSd, XVitalsFirst, XVitalsLast, XLabsMax, XLabsMin, XLabsAvg, XLabsSd, XLabsFirst, XLabsLast, y = readData(con, schemaName, targetStart, targetEnd)
+    X, XVitalsMax, XVitalsMin, XVitalsAvg, XVitalsSd, XVitalsFirst, XVitalsLast, XLabsMax, XLabsMin, XLabsAvg, XLabsSd, XLabsFirst, XLabsLast, y = readData(dirPath=dirPath, targetStart=targetStart, targetEnd=targetEnd)
 
     XMin = performSfs(X, y)
 
@@ -385,11 +411,11 @@ def runPredictions(con, schemaName, targetStart, targetEnd):
 
     log.info('Building MLP model with all the features')
 
-    mlpScores = buildMLPModel(X, y, 200)
+    mlpScores = buildMLPModel(X, y, 150)
 
     log.info('Building MLP model with the selected features')
 
-    mlpMinScores = buildMLPModel(XMin, y, 50)
+    mlpMinScores = buildMLPModel(XMin, y, 30)
 
     log.info('Get Outputs from first level models')
 
@@ -421,13 +447,13 @@ def runPredictions(con, schemaName, targetStart, targetEnd):
 
     log.info('Saving the CV results for all the models')
 
-    saveCvScores(scores_dict = scores_dict, schemaName = schemaName, targetStart = targetStart, targetEnd = targetEnd)
+    saveCvScores(scores_dict = scores_dict, dirPath = dirPath, dirName = dirName, targetStart = targetStart, targetEnd = targetEnd)
 
     log.info('Completed !!!')
 
 
 def runPredictionsForAllTargets(
-    con,
+    dirPath = "./",
     vitalsBefore = 48,
     vitalsAfter = 48,
     labsBefore = 72,
@@ -435,8 +461,8 @@ def runPredictionsForAllTargets(
     targetList = [7, 14, 21, 30, 60, 90, 120, (7, 14), (14, 21), (21, 30), (30, 60), (60, 90), (90, 120)],
     ):
 
-    schemaName = "sepsis_icd_vb_" + str(vitalsBefore) + "_va_" + str(vitalsAfter) + "_lb_" + str(labsBefore) + "_la_" + str(labsAfter)
-    log.info("Schema Name: " + schemaName)
+    dirName = "sepsis_icd_vb_" + str(vitalsBefore) + "_va_" + str(vitalsAfter) + "_lb_" + str(labsBefore) + "_la_" + str(labsAfter)
+    log.info("dirName: " + dirName)
     for target in targetList:
         if type(target) is tuple:
             targetStart = target[0]
@@ -444,43 +470,25 @@ def runPredictionsForAllTargets(
         else:
             targetStart = 0
             targetEnd = target
-        log.info("Running Predictions for schemaName : " + schemaName + ", targetStart : " + str(targetStart) + ", targetEnd : " + str(targetEnd))
-        runPredictions(con, schemaName, targetStart, targetEnd)
+        log.info("Running Predictions for dirName : " + dirName + ", targetStart : " + str(targetStart) + ", targetEnd : " + str(targetEnd))
+        runPredictions(dirPath, dirName, targetStart, targetEnd)
 
 
-# if __name__ == '__main__':
+if __name__ == '__main__':
+    dirPath = '/superbugai-data/yash/chapter_1/workspace/EHRQC/data/icd_cohort_test/'
+    runPredictionsForAllTargets(
+        dirPath = dirPath,
+        vitalsBefore = 24,
+        vitalsAfter = 24,
+        labsBefore = 24,
+        labsAfter = 24,
+        targetList = [7]
+        # targetList = [7, 14, 21, 30, 60, 90, 120, (7, 14), (14, 21), (21, 30), (30, 60), (60, 90), (90, 120)]
+    )
     # runPredictionsForAllTargets(
     #     vitalsBefore = 48,
     #     vitalsAfter = 48,
     #     labsBefore = 72,
     #     labsAfter = 72,
-    #     targetList = [7, 14, 21, 30, 60, 90, 120, (7, 14), (14, 21), (21, 30), (30, 60), (60, 90), (90, 120)]
-    #     )
-    # runPredictionsForAllTargets(
-    #     vitalsBefore = 48,
-    #     vitalsAfter = 48,
-    #     labsBefore = 72,
-    #     labsAfter = 72,
-    #     targetList = [7]
-    #     )
-    # runPredictionsForAllTargets(
-    #     vitalsBefore = 24,
-    #     vitalsAfter = 0,
-    #     labsBefore = 24,
-    #     labsAfter = 0,
-    #     targetList = [7, 14, 21, 30, 60, 90, 120, (7, 14), (14, 21), (21, 30), (30, 60), (60, 90), (90, 120)]
-    #     )
-    # runPredictionsForAllTargets(
-    #     vitalsBefore = 48,
-    #     vitalsAfter = 0,
-    #     labsBefore = 48,
-    #     labsAfter = 0,
-    #     targetList = [7, 14, 21, 30, 60, 90, 120, (7, 14), (14, 21), (21, 30), (30, 60), (60, 90), (90, 120)]
-    #     )
-    # runPredictionsForAllTargets(
-    #     vitalsBefore = 72,
-    #     vitalsAfter = 0,
-    #     labsBefore = 72,
-    #     labsAfter = 0,
     #     targetList = [7, 14, 21, 30, 60, 90, 120, (7, 14), (14, 21), (21, 30), (30, 60), (60, 90), (90, 120)]
     #     )

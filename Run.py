@@ -47,13 +47,14 @@ if __name__ == "__main__":
     # dr.createDataMatrix(con=con, schemaName='testing')
     # esi.extractEhr(con=con, vitalsBefore=24, vitalsAfter=24, labsBefore=24, labsAfter=24)
     # pa.formatAll(con=con, vitalsBefore=24, vitalsAfter=24, labsBefore=24, labsAfter=24)
+    dirPath = '/superbugai-data/yash/chapter_1/workspace/EHRQC/data/icd_cohort_test/'
     pm.runPredictionsForAllTargets(
-        con=con,
+        dirPath = dirPath,
         vitalsBefore = 24,
-        vitalsAfter = 24,
+        vitalsAfter = 72,
         labsBefore = 24,
-        labsAfter = 24,
+        labsAfter = 72,
         # targetList = [7, 14, 21, 30, 60, 90, 120, (7, 14), (14, 21), (21, 30), (30, 60), (60, 90), (90, 120)]
-        targetList = [30, 60, 90, 120, (7, 14), (14, 21), (21, 30), (30, 60), (60, 90), (90, 120)]
+        targetList = [7]
         )
 
