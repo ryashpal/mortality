@@ -453,6 +453,7 @@ def runPredictions(dirPath, dirName, targetStart, targetEnd):
 
 
 def runPredictionsForAllTargets(
+    label="run",
     dirPath = "./",
     vitalsBefore = 48,
     vitalsAfter = 48,
@@ -461,7 +462,7 @@ def runPredictionsForAllTargets(
     targetList = [7, 14, 21, 30, 60, 90, 120, (7, 14), (14, 21), (21, 30), (30, 60), (60, 90), (90, 120)],
     ):
 
-    dirName = "sepsis_icd_vb_" + str(vitalsBefore) + "_va_" + str(vitalsAfter) + "_lb_" + str(labsBefore) + "_la_" + str(labsAfter)
+    dirName = label + "_icd_vb_" + str(vitalsBefore) + "_va_" + str(vitalsAfter) + "_lb_" + str(labsBefore) + "_la_" + str(labsAfter)
     log.info("dirName: " + dirName)
     for target in targetList:
         if type(target) is tuple:
@@ -470,7 +471,7 @@ def runPredictionsForAllTargets(
         else:
             targetStart = 0
             targetEnd = target
-        log.info("Running Predictions for dirName : " + dirName + ", targetStart : " + str(targetStart) + ", targetEnd : " + str(targetEnd))
+        log.info("Running Predictions for vb_" + str(vitalsBefore) + "_va_" + str(vitalsAfter) + "_lb_" + str(labsBefore) + "_la_" + str(labsAfter) + ", targetStart : " + str(targetStart) + ", targetEnd : " + str(targetEnd))
         runPredictions(dirPath, dirName, targetStart, targetEnd)
 
 
