@@ -266,20 +266,20 @@ def getOutputProbabilities(XVitalsMax, XVitalsMin, XVitalsAvg, XVitalsSd, XVital
     return Xnew, yTest
 
 
-def getBestXgbHyperparameter(X, y, parameters):
+def getBestXgbHyperparameter(X, y, tuned_params, parameters):
 
     from xgboost import XGBClassifier
-
     from sklearn.model_selection import GridSearchCV
 
     params = {}
 
     log.info('Hyperparameter optimisation for: ' + str(parameters))
 
-    clf = GridSearchCV(XGBClassifier(use_label_encoder=False), parameters)
+    clf = GridSearchCV(XGBClassifier(use_label_encoder=False, **tuned_params), parameters)
     clf.fit(X, y)
 
     params = clf.cv_results_['params'][list(clf.cv_results_['rank_test_score']).index(1)]
+
     return(params)
 
 
@@ -287,17 +287,17 @@ def performXgbHyperparameterTuning(X, y):
 
     params = {}
 
-    params.update(getBestXgbHyperparameter(X, y, {'max_depth' : range(1,10),'scale_pos_weight': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],}))
+    params.update(getBestXgbHyperparameter(X, y, params, {'max_depth' : range(1,10),'scale_pos_weight': [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4],}))
 
-    params.update(getBestXgbHyperparameter(X, y, {'n_estimators':range(50,250,10)}))
+    params.update(getBestXgbHyperparameter(X, y, params, {'n_estimators':range(50,250,10)}))
 
-    params.update(getBestXgbHyperparameter(X, y, {'min_child_weight':range(1,10)}))
+    params.update(getBestXgbHyperparameter(X, y, params, {'min_child_weight':range(1,10)}))
 
-    params.update(getBestXgbHyperparameter(X, y, {'gamma':[i/10. for i in range(0,5)]}))
+    params.update(getBestXgbHyperparameter(X, y, params, {'gamma':[i/10. for i in range(0,5)]}))
 
-    params.update(getBestXgbHyperparameter(X, y, {'subsample':[i/10.0 for i in range(1,10)],'colsample_bytree':[i/10.0 for i in range(1,10)]}))
+    params.update(getBestXgbHyperparameter(X, y, params, {'subsample':[i/10.0 for i in range(1,10)],'colsample_bytree':[i/10.0 for i in range(1,10)]}))
 
-    params.update(getBestXgbHyperparameter(X, y, {'reg_alpha':[0, 1e-5, 1e-3, 0.1, 10]}))
+    params.update(getBestXgbHyperparameter(X, y, params, {'reg_alpha':[0, 1e-5, 1e-3, 0.1, 10]}))
 
     log.info('params: ' + str(params))
 
