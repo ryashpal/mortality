@@ -3,7 +3,7 @@ import logging
 log = logging.getLogger("Pipeline")
 
 
-def readData(dirPath, targetStart, targetEnd):
+def readData(dirPath, targetStart, targetEnd, windowEnd):
 
     import pandas as pd
 
@@ -11,6 +11,8 @@ def readData(dirPath, targetStart, targetEnd):
 
     dataDf.anchor_time = dataDf.anchor_time.apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d %H:%M:%S'))
     dataDf.death_datetime = dataDf.death_datetime.apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d %H:%M:%S'))
+
+    dataDf.drop(dataDf[dataDf.death_datetime < (dataDf.anchor_time + pd.Timedelta(hours=windowEnd))].index).reset_index(drop=True)
 
     dataDf['target'] = (dataDf['death_datetime'] > (dataDf['anchor_time'] + pd.Timedelta(days=targetStart))) & (dataDf['death_datetime'] < (dataDf['anchor_time'] + pd.Timedelta(days=targetEnd)))
     dataDf.target.fillna(value=False, inplace=True)
@@ -378,10 +380,10 @@ def calculateMccF1(x, y):
     return out
 
 
-def runPredictions(dirPath, dirName, targetStart, targetEnd):
+def runPredictions(dirPath, dirName, targetStart, targetEnd, windowEnd):
     log.info('Reading data')
 
-    X, XVitalsMax, XVitalsMin, XVitalsAvg, XVitalsSd, XVitalsFirst, XVitalsLast, XLabsMax, XLabsMin, XLabsAvg, XLabsSd, XLabsFirst, XLabsLast, y = readData(dirPath=dirPath, targetStart=targetStart, targetEnd=targetEnd)
+    X, XVitalsMax, XVitalsMin, XVitalsAvg, XVitalsSd, XVitalsFirst, XVitalsLast, XLabsMax, XLabsMin, XLabsAvg, XLabsSd, XLabsFirst, XLabsLast, y = readData(dirPath=dirPath, targetStart=targetStart, targetEnd=targetEnd, windowEnd=windowEnd)
 
     XMin = performSfs(X, y)
 
@@ -472,7 +474,8 @@ def runPredictionsForAllTargets(
             targetStart = 0
             targetEnd = target
         log.info("Running Predictions for vb_" + str(vitalsBefore) + "_va_" + str(vitalsAfter) + "_lb_" + str(labsBefore) + "_la_" + str(labsAfter) + ", targetStart : " + str(targetStart) + ", targetEnd : " + str(targetEnd))
-        runPredictions(dirPath, dirName, targetStart, targetEnd)
+        windowEnd=max(vitalsAfter, labsAfter)
+        runPredictions(dirPath, dirName, targetStart, targetEnd, windowEnd)
 
 
 if __name__ == '__main__':
